@@ -7,75 +7,65 @@ import { FirebaseManager } from "./firebase.js";
  * CONSTANTS
  */
 
-/** How long (ms) of silence before we consider user idle */
-const IDLE_TIMEOUT_MS = 60 * 1000; // 60 seconds
+/** Seconds of silence before we consider the user idle. */
+const IDLE_TIMEOUT_MS = 60 * 1000;
 
-/** How often (ms) the heartbeat checks for idle */
-const HEARTBEAT_INTERVAL_MS = 1000; // 1 second
+/** How often the heartbeat fires to check for idle. */
+const HEARTBEAT_INTERVAL_MS = 1 * 1000;
 
-/** How often (ms) we sync accumulated data to Firebase */
-const SYNC_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
+/** How often we flush accumulated time to Firestore. */
+const SYNC_INTERVAL_MS = 10 * 60 * 1000;
 
 /**
  * TRACKER CLASS
  */
 
 export class Tracker {
-  // ── Dependencies ──────────────────────────
-  private firebaseManager: FirebaseManager;
-  private userId: string;
+  private readonly firebase: FirebaseManager;
+  private readonly userId: string;
 
-  // ── State: Is the user currently active? ──
+  // Is user currently inside an active session?
   private isTracking = false;
 
-  // ── State: When did the current session start? ──
-  // Null when not tracking.
+  // When did the current session start? ──
   private sessionStartTime: number | null = null;
 
-  // ── State: When was the last activity detected? ──
+  // When was the last activity detected?
   // This is NOT the same as sessionStartTime.
   // sessionStartTime = when tracking began.
   // lastActivityTime = when the user last did something.
   // We flush time up to lastActivityTime, not Date.now().
   private lastActivityTime: number = 0;
 
-  // ── State: What language is the user currently coding in? ──
-  // Captured at each activity event so we know which language
-  // to credit when we flush a chunk.
+  // What language is the user currently coding in?
   private currentLanguage: string = "unknown";
 
-  // ── State: What date are we tracking? ──
-  // If this changes (midnight rollover), we flush and reset.
+  // What date are we tracking?
   private currentDate: string = getCurrentDate();
 
-  // ── State: Today's accumulated data ──
-  // This is what gets written to Firebase on sync.
-  // It resets after each successful sync.
-  private todayData: IDayData = this.createEmptyDayData();
+  // Today's accumulated data ──
+  private todayData: IDayData = this.emptyDayData();
 
-  // ── Timers ────────────────────────────────
+  // Timers
   private heartbeatTimer: NodeJS.Timeout | null = null;
   private syncTimer: NodeJS.Timeout | null = null;
 
-  // ── Event Disposables ────────────────────
+  // VS Code event subscriptions
   private disposables: vscode.Disposable[] = [];
 
-  constructor(firebaseManager: FirebaseManager, userId: string) {
-    this.firebaseManager = firebaseManager;
+  constructor(firebase: FirebaseManager, userId: string) {
+    this.firebase = firebase;
     this.userId = userId;
+    this.currentDate = getCurrentDate();
+    this.todayData = this.emptyDayData();
   }
 
-  // ─────────────────────────────────────────────
   // PUBLIC API
-  // ─────────────────────────────────────────────
 
   /**
    * Start the tracker. Call this once from extension.ts activate().
    */
   start(): void {
-    console.log("[Tracker] Starting...");
-
-    // Listen to VS Code events
     this.disposables.push(
       vscode.workspace.onDidChangeTextDocument(
         this.onDocumentChange.bind(this),
@@ -83,25 +73,20 @@ export class Tracker {
       vscode.window.onDidChangeActiveTextEditor(this.onEditorChange.bind(this)),
     );
 
-    // Start the heartbeat (checks for idle every second)
     this.heartbeatTimer = setInterval(
       this.onHeartbeat.bind(this),
       HEARTBEAT_INTERVAL_MS,
     );
 
-    // Start the sync timer (writes to Firebase every 10 min)
     this.syncTimer = setInterval(this.onSyncTick.bind(this), SYNC_INTERVAL_MS);
 
-    console.log("[Tracker] Started. Listening for activity.");
+    console.log("[Tracker] Started.");
   }
 
   /**
-   * Stop the tracker cleanly. Call this on deactivate().
-   * CRITICAL: Flushes any in-progress session before stopping.
+   * Flushes any in-progress session before stopping.
    */
   async stop(): Promise<void> {
-    console.log("[Tracker] Stopping...");
-
     // Clear timers first so nothing fires while we flush
     this.clearTimers();
 
@@ -118,13 +103,10 @@ export class Tracker {
     console.log("[Tracker] Stopped.");
   }
 
-  // ─────────────────────────────────────────────
   // EVENT HANDLERS
-  // ─────────────────────────────────────────────
 
   /**
-   * Fires every time the user types or edits in any document.
-   * This is our primary activity signal.
+   * Fires on every keystroke / edit in any open document.
    */
   private onDocumentChange(event: vscode.TextDocumentChangeEvent): void {
     // Ignore non-file documents (like the terminal, output panel, etc.)
@@ -157,20 +139,16 @@ export class Tracker {
     this.recordActivity();
   }
 
-  // ─────────────────────────────────────────────
   // CORE TRACKING LOGIC
-  // ─────────────────────────────────────────────
 
   /**
-   * CRITICAL: Called on every detected activity.
-   * This is the single entry point for "user is doing something".
+   * Called on every detected activity.
    */
   private recordActivity(): void {
     this.lastActivityTime = Date.now();
     this.currentLanguage = getCurrentLanguage();
 
     if (!this.isTracking) {
-      // User was idle, now they're active again. Start a new session.
       this.sessionStartTime = Date.now();
       this.isTracking = true;
       console.log(
@@ -190,64 +168,55 @@ export class Tracker {
     const idleDuration = Date.now() - this.lastActivityTime;
 
     if (idleDuration >= IDLE_TIMEOUT_MS) {
-      // User has been idle for 60+ seconds
-      console.log("[Tracker] Idle detected. Flushing session.");
+      console.log("[Tracker] Idle timeout reached. Flushing session.");
       this.flushCurrentSession();
     }
   }
 
   /**
    * Flush the current active session into todayData.
-   *
    * This calculates how long the user was active and adds it
    * to the correct language bucket in todayData.
-   *
-   * Time is credited up to lastActivityTime, NOT Date.now().
-   * This avoids crediting idle time.
    */
   private flushCurrentSession(): void {
     if (!this.isTracking || !this.sessionStartTime) {
-      return; // Nothing to flush
+      return;
     }
 
-    // Credit time up to lastActivityTime (not now — that would include idle time)
-    const activeMs = this.lastActivityTime - this.sessionStartTime;
-    const activeSeconds = Math.floor(activeMs / 1000);
+    const creditUpTo = this.lastActivityTime;
+    const durationMs = creditUpTo - this.sessionStartTime;
+    const durationSeconds = Math.floor(durationMs / 1000);
 
-    if (activeSeconds <= 0) {
-      // Edge case: activity event fired but no real time passed
-      this.isTracking = false;
-      this.sessionStartTime = null;
+    // Reset session state immediately — even if durationSeconds is 0,
+    this.isTracking = false;
+    this.sessionStartTime = null;
+
+    if (durationSeconds <= 0) {
       return;
     }
 
     // Check for midnight rollover BEFORE accumulating
     this.checkDateRollover();
 
-    // Accumulate into todayData
-    this.todayData.totalSeconds += activeSeconds;
+    // Accumulate
+    this.todayData.totalSeconds += durationSeconds;
     this.todayData.languages[this.currentLanguage] =
-      (this.todayData.languages[this.currentLanguage] || 0) + activeSeconds;
+      (this.todayData.languages[this.currentLanguage] || 0) + durationSeconds;
 
     console.log(
-      `[Tracker] Flushed ${activeSeconds}s of ${this.currentLanguage}. ` +
+      `[Tracker] Flushed ${durationSeconds}s of ${this.currentLanguage}. ` +
         `Today total: ${this.todayData.totalSeconds}s`,
     );
-
-    // Reset session state
-    this.isTracking = false;
-    this.sessionStartTime = null;
   }
 
   /**
-   * Fires every 10 minutes. Writes accumulated data to Firebase.
+   * Fires every 10 minutes
    */
   private async onSyncTick(): Promise<void> {
     // If user is actively coding, flush their current session first
     // so we don't miss time that's accumulated but not yet flushed.
     this.flushCurrentSession();
 
-    // Now sync whatever we have
     await this.syncToFirebase();
   }
 
@@ -255,9 +224,7 @@ export class Tracker {
    * Write todayData to Firebase, then reset the local accumulator.
    */
   private async syncToFirebase(): Promise<void> {
-    // Nothing to sync if we have zero seconds
     if (this.todayData.totalSeconds === 0) {
-      console.log("[Tracker] Nothing to sync.");
       return;
     }
 
@@ -265,57 +232,53 @@ export class Tracker {
       `[Tracker] Syncing ${this.todayData.totalSeconds}s to Firebase...`,
     );
 
-    const success = await this.firebaseManager.writeDayData(
+    const success = await this.firebase.writeDayData(
       this.userId,
       this.todayData,
     );
 
     if (success) {
-      // Reset accumulator after successful write
-      // Only reset on success. If write fails, we keep
-      // the data and it will be included in the next sync attempt.
-      this.todayData = this.createEmptyDayData();
-      console.log("[Tracker] Sync successful. Accumulator reset.");
+      // Reset accumulator after successful write, Only reset on success. If write
+      // fails, we keep the data and it will be included in the next sync attempt.
+      this.todayData = this.emptyDayData();
+      console.log("[Tracker] Sync OK. Accumulator reset.");
     } else {
-      console.log("[Tracker] Sync failed. Data preserved for next attempt.");
+      console.log(
+        "[Tracker] Sync failed. Accumulator preserved for next tick.",
+      );
     }
   }
 
-  // ─────────────────────────────────────────────
   // MIDNIGHT ROLLOVER
-  // ─────────────────────────────────────────────
 
   /**
-   * Detects if the date has changed (user coded past midnight).
+   * Detects if the date has changed
    * If so, syncs current day's data immediately and resets for the new day.
    */
   private checkDateRollover(): void {
     const today = getCurrentDate();
 
-    if (today !== this.currentDate) {
-      console.log(
-        `[Tracker] Date rollover detected: ${this.currentDate} → ${today}`,
-      );
+    if (today === this.currentDate) {
+      return;
+    }
 
-      // Sync the OLD day's data immediately (don't wait for next sync tick)
-      // We do this synchronously here — the actual Firebase write is fire-and-forget
-      // because we can't await in this context cleanly.
-      // The data is safe because writeDayData queues on failure.
-      this.firebaseManager.writeDayData(this.userId, this.todayData);
+      console.log(`[Tracker] Date rollover: ${this.currentDate} → ${today}`);
+
+      // Fire-and-forget write of the old day.
+    // If this fails, FirebaseManager will queue it for retry.
+    // We can't await here cleanly (we're inside a synchronous flush),
+    // but data safety is guaranteed by the offline queue.
+      this.firebase.writeDayData(this.userId, this.todayData);
 
       // Reset for the new day
       this.currentDate = today;
-      this.todayData = this.createEmptyDayData();
-
-      console.log(`[Tracker] New day started: ${today}`);
-    }
+      this.todayData = this.emptyDayData();
   }
 
-  // ─────────────────────────────────────────────
-  // HELPERS
-  // ─────────────────────────────────────────────
 
-  private createEmptyDayData(): IDayData {
+  // HELPERS
+
+  private emptyDayData(): IDayData {
     return {
       date: this.currentDate,
       totalSeconds: 0,

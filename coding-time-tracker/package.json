@@ -1,14 +1,20 @@
 {
   "name": "coding-time-tracker",
   "displayName": "Coding Time Tracker",
-  "description": "Track your daily coding time automatically",
+  "description": "Automatically track your daily coding time and sync to Firebase",
   "version": "0.0.1",
+  "publisher": "dipishBisht",
   "type": "module",
   "engines": {
     "vscode": "^1.108.1"
   },
   "categories": [
     "Other"
+  ],
+   "keywords": [
+    "time tracking",
+    "productivity",
+    "coding stats"
   ],
   "activationEvents": [
     "onStartupFinished"
@@ -17,20 +23,12 @@
   "contributes": {
     "commands": [
       {
-        "command": "coding-time-tracker.showStats",
-        "title": "Coding Time: Show Today's Stats"
-      },
-      {
         "command": "coding-time-tracker.configure",
         "title": "Coding Time: Configure Firebase"
       },
       {
-        "command": "coding-time-tracker.reset",
-        "title": "Coding Time: Reset Extension (DEV)"
-      },
-      {
-        "command": "coding-time-tracker.testWrite",
-        "title": "Coding Time: Test Write"
+        "command": "coding-time-tracker.showStats",
+        "title": "Coding Time: Show Today's Stats"
       }
     ]
   },

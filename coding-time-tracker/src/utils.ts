@@ -4,20 +4,18 @@ import { v4 as uuidv4 } from "uuid";
 /**
  * Get or create a unique user ID
  */
-export async function getUserId(
-  context: vscode.ExtensionContext,
-): Promise<string> {
-  const STORAGE_KEY = "coding_time_tracker_user_id";
+export async function getUserId(context: vscode.ExtensionContext): Promise<string> {
+  const KEY = 'coding_time_tracker_user_id';
 
-  let userId = context.globalState.get<string>(STORAGE_KEY);
-
-  if (!userId) {
-    userId = uuidv4();
-    await context.globalState.update(STORAGE_KEY, userId);
-    console.log("[CodingTime] Generated new user ID:", userId);
+  const existing = context.globalState.get<string>(KEY);
+  if (existing) {
+    return existing;
   }
 
-  return userId;
+  const newId = uuidv4();
+  await context.globalState.update(KEY, newId);
+  console.log('[Utils] Generated new user ID:', newId);
+  return newId;
 }
 
 /**
