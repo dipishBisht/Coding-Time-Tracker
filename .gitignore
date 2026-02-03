@@ -15,6 +15,7 @@ coding-time-tracker/out/
 # ─── Next.js (root app — will be created later) ────────────────────────────
 .next/
 next-env.d.ts
+out/
 
 # ─── Environment & secrets — NEVER commit these ─────────────────────────────
 .env
