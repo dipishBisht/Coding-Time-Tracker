@@ -1,13 +1,13 @@
 import * as vscode from "vscode";
-import { FirebaseManager } from "./firebase.js";
-import { Tracker } from "./tracker.js";
-import { getUserId, getCurrentDate } from "./utils.js";
+import { API_ENDPOINT, ApiClient } from "./api-client";
+import { Tracker } from "./tracker";
+import { getUserId, getCurrentDate } from "./utils";
 
 /**
  * MODULE-LEVEL STATE
  * These live for the entire lifetime of the extension.
  */
-let firebase: FirebaseManager;
+let apiClient: ApiClient;
 let tracker: Tracker | null = null;
 let extensionContext: vscode.ExtensionContext;
 
@@ -21,30 +21,30 @@ export async function activate(
   console.log("[CodingTime] Activating...");
 
   // ── 1. Firebase setup ───────────
-  firebase = new FirebaseManager(context);
-  const alreadyConfigured = await firebase.isConfigured();
+  apiClient = new ApiClient(context);
+  const alreadyConfigured = await apiClient.isConfigured();
 
   if (!alreadyConfigured) {
     const choice = await vscode.window.showInformationMessage(
-      "Coding Time Tracker needs a Firebase service account to sync data.",
-      "Configure Now",
+      "Coding Time Tracker will generate a secure token to sync your data.",
+      "Generate Token",
       "Later",
     );
 
-    if (choice === "Configure Now") {
+    if (choice === "Generate Token") {
       await runConfigureFlow();
     } else {
       vscode.window.showWarningMessage(
         "Tracking is paused until configured. " +
-          'Run "Coding Time: Configure Firebase" from the Command Palette when ready.',
+          'Run "Coding Time: Configure API" from the Command Palette when ready.',
       );
     }
   } else {
-    await firebase.initialize();
+    await apiClient.initialize();
   }
 
-  // ── 2. Start the tracker (only if Firebase is ready) ──
-  if (await firebase.isConfigured()) {
+  // ── 2. Start the tracker, if configured ──
+  if (await apiClient.isConfigured()) {
     await startTracker();
   }
 
@@ -55,6 +55,7 @@ export async function activate(
       runConfigureFlow,
     ),
     vscode.commands.registerCommand("coding-time-tracker.showStats", showStats),
+    vscode.commands.registerCommand("coding-time-tracker.showToken", showToken),
   );
 
   // ── 4: Register cleanup ──────────────
@@ -63,7 +64,7 @@ export async function activate(
       if (tracker) {
         await tracker.stop();
       }
-      await firebase.dispose();
+      await apiClient.dispose();
       console.log("[CodingTime] Fully disposed.");
     },
   });
@@ -87,50 +88,63 @@ export function deactivate() {
  */
 async function startTracker(): Promise<void> {
   const userId = await getUserId(extensionContext);
-  tracker = new Tracker(firebase, userId);
+  tracker = new Tracker(apiClient, userId);
   tracker.start();
-  console.log("[CodingTime] Tracker started.");
+  console.log("[CodingTime] Tracker is running.");
 }
 
 /**
- * Run the Firebase configuration flow.
- * Prompts user for service account JSON, stores it, then starts tracker.
+ * Command handler: "Coding Time: Configure API"
  */
 async function runConfigureFlow(): Promise<void> {
-  const input = await vscode.window.showInputBox({
-    prompt: "Paste your Firebase service account JSON here",
-    placeHolder: '{ "type": "service_account", ... }',
-    ignoreFocusOut: true,
-    validateInput: (value) => {
-      try {
-        const parsed = JSON.parse(value);
-        if (!parsed.project_id || !parsed.private_key || !parsed.client_email) {
-          return "Missing required fields: project_id, private_key, client_email";
-        }
-        return null; // Valid
-      } catch {
-        return "Invalid JSON. Paste the entire contents of your service account file.";
-      }
-    },
-  });
+  const choice = await vscode.window.showInformationMessage(
+    "Do you already have a token from the website, or should we generate one?",
+    "Generate New Token",
+    "I Have a Token",
+  );
 
-  if (!input) {
-    return;
+  let token: string | undefined;
+
+  if (choice === "I Have a Token") {
+    token = await vscode.window.showInputBox({
+      prompt: "Paste your token from the website",
+      placeHolder: "abc123...",
+      password: true,
+      ignoreFocusOut: true,
+      validateInput: (value) => {
+        if (value.length < 16) {
+          return "Token seems too short. Make sure you copied the entire thing.";
+        }
+        return null;
+      },
+    });
+
+    if (!token) {
+      return;
+    }
   }
 
-  const success = await firebase.configure(input);
+  const success = await apiClient.configure(token);
 
   if (success) {
-    vscode.window.showInformationMessage(
-      "Firebase configured. Starting tracker...",
-    );
+    vscode.window.showInformationMessage("API configured successfully.");
 
+    const userToken = await apiClient.getUserToken();
+    if (userToken && !choice) {
+      // Only show if we generated it (not if they pasted their own)
+      vscode.window.showInformationMessage(
+        `Your token: ${userToken}\n\n` +
+          'Save this somewhere safe. You can view it anytime with "Coding Time: Show Token".',
+      );
+    }
+
+    // Start tracker if not already running
     if (!tracker) {
       await startTracker();
     }
   } else {
     vscode.window.showErrorMessage(
-      "Configuration failed. Open the Debug Console (Ctrl+Shift+J) for details.",
+      "Configuration failed. Check the Debug Console for details.",
     );
   }
 }
@@ -141,18 +155,39 @@ async function runConfigureFlow(): Promise<void> {
 async function showStats(): Promise<void> {
   if (!tracker) {
     vscode.window.showWarningMessage(
-      "Tracker is not running. Configure Firebase first.",
+      "Tracker is not running. Configure the API first.",
     );
     return;
   }
 
   const userId = await getUserId(extensionContext);
   const today = getCurrentDate();
+  const token = await apiClient.getUserToken();
 
   vscode.window.showInformationMessage(
     `User ID: ${userId}\n` +
-      `Today: ${today}\n\n` +
-      `To see your stats, go to:\n` +
-      `Firebase Console → Firestore → users/${userId}/days/${today}`,
+      `Today: ${today}\n` +
+      `Token: ${token}\n\n` +
+      `View your stats at:\n` +
+      `${API_ENDPOINT}/stats/${userId}`,
+  );
+}
+
+/**
+ * Command handler: "Coding Time: Show Token"
+ */
+async function showToken(): Promise<void> {
+  const token = await apiClient.getUserToken();
+
+  if (!token) {
+    vscode.window.showWarningMessage(
+      'No token found. Run "Configure API" first.',
+    );
+    return;
+  }
+
+  vscode.window.showInformationMessage(
+    `Your token:\n${token}\n\n` +
+      "Use this token on the website to view your stats.",
   );
 }

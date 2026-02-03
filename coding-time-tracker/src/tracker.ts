@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
-import { IDayData } from "./types.js";
-import { getCurrentDate, getCurrentLanguage } from "./utils.js";
-import { FirebaseManager } from "./firebase.js";
+import { IDayData } from "./types";
+import { getCurrentDate, getCurrentLanguage } from "./utils";
+import { ApiClient } from "./api-client";
 
 /**
  * CONSTANTS
@@ -14,47 +14,29 @@ const IDLE_TIMEOUT_MS = 60 * 1000;
 const HEARTBEAT_INTERVAL_MS = 1 * 1000;
 
 /** How often we flush accumulated time to Firestore. */
-const SYNC_INTERVAL_MS = 10 * 60 * 1000;
+const SYNC_INTERVAL_MS = 20 * 60 * 1000;
 
 /**
  * TRACKER CLASS
  */
 
 export class Tracker {
-  private readonly firebase: FirebaseManager;
+  private readonly apiClient: ApiClient;
   private readonly userId: string;
 
-  // Is user currently inside an active session?
   private isTracking = false;
-
-  // When did the current session start? ──
   private sessionStartTime: number | null = null;
+  private lastActivityTime = 0;
+  private currentLanguage = "unknown";
+  private currentDate: string;
+  private todayData: IDayData;
 
-  // When was the last activity detected?
-  // This is NOT the same as sessionStartTime.
-  // sessionStartTime = when tracking began.
-  // lastActivityTime = when the user last did something.
-  // We flush time up to lastActivityTime, not Date.now().
-  private lastActivityTime: number = 0;
-
-  // What language is the user currently coding in?
-  private currentLanguage: string = "unknown";
-
-  // What date are we tracking?
-  private currentDate: string = getCurrentDate();
-
-  // Today's accumulated data ──
-  private todayData: IDayData = this.emptyDayData();
-
-  // Timers
-  private heartbeatTimer: NodeJS.Timeout | null = null;
-  private syncTimer: NodeJS.Timeout | null = null;
-
-  // VS Code event subscriptions
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private syncTimer: ReturnType<typeof setInterval> | null = null;
   private disposables: vscode.Disposable[] = [];
 
-  constructor(firebase: FirebaseManager, userId: string) {
-    this.firebase = firebase;
+  constructor(apiClient: ApiClient, userId: string) {
+    this.apiClient = apiClient;
     this.userId = userId;
     this.currentDate = getCurrentDate();
     this.todayData = this.emptyDayData();
@@ -94,7 +76,7 @@ export class Tracker {
     this.flushCurrentSession();
 
     // Do a final sync so nothing is lost
-    await this.syncToFirebase();
+    await this.syncToApi();
 
     // Dispose of event listeners
     this.disposables.forEach((d) => d.dispose());
@@ -165,9 +147,9 @@ export class Tracker {
       return; // Nothing to check — we're already idle
     }
 
-    const idleDuration = Date.now() - this.lastActivityTime;
+    const idleMs = Date.now() - this.lastActivityTime;
 
-    if (idleDuration >= IDLE_TIMEOUT_MS) {
+    if (idleMs >= IDLE_TIMEOUT_MS) {
       console.log("[Tracker] Idle timeout reached. Flushing session.");
       this.flushCurrentSession();
     }
@@ -187,7 +169,7 @@ export class Tracker {
     const durationMs = creditUpTo - this.sessionStartTime;
     const durationSeconds = Math.floor(durationMs / 1000);
 
-    // Reset session state immediately — even if durationSeconds is 0,
+    // Reset session state immediately
     this.isTracking = false;
     this.sessionStartTime = null;
 
@@ -210,32 +192,30 @@ export class Tracker {
   }
 
   /**
-   * Fires every 10 minutes
+   * Fires every 20 minutes
    */
   private async onSyncTick(): Promise<void> {
     // If user is actively coding, flush their current session first
     // so we don't miss time that's accumulated but not yet flushed.
     this.flushCurrentSession();
 
-    await this.syncToFirebase();
+    await this.syncToApi();
   }
 
   /**
-   * Write todayData to Firebase, then reset the local accumulator.
+   * Write todayData, then reset the local accumulator.
    */
-  private async syncToFirebase(): Promise<void> {
+  private async syncToApi(): Promise<void> {
     if (this.todayData.totalSeconds === 0) {
       return;
     }
 
     console.log(
-      `[Tracker] Syncing ${this.todayData.totalSeconds}s to Firebase...`,
+      `[Tracker] Syncing ${this.todayData.totalSeconds}s.`,
     );
 
-    const success = await this.firebase.writeDayData(
-      this.userId,
-      this.todayData,
-    );
+    const success = await this.apiClient.writeDayData(this.userId, this.todayData);
+
 
     if (success) {
       // Reset accumulator after successful write, Only reset on success. If write
@@ -262,19 +242,18 @@ export class Tracker {
       return;
     }
 
-      console.log(`[Tracker] Date rollover: ${this.currentDate} → ${today}`);
+    console.log(`[Tracker] Date rollover: ${this.currentDate} → ${today}`);
 
-      // Fire-and-forget write of the old day.
+    // Fire-and-forget write of the old day.
     // If this fails, FirebaseManager will queue it for retry.
     // We can't await here cleanly (we're inside a synchronous flush),
     // but data safety is guaranteed by the offline queue.
-      this.firebase.writeDayData(this.userId, this.todayData);
+    this.apiClient.writeDayData(this.userId, this.todayData);
 
-      // Reset for the new day
-      this.currentDate = today;
-      this.todayData = this.emptyDayData();
+    // Reset for the new day
+    this.currentDate = today;
+    this.todayData = this.emptyDayData();
   }
-
 
   // HELPERS
 

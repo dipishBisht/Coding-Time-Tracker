@@ -2,20 +2,19 @@
   "name": "coding-time-tracker",
   "displayName": "Coding Time Tracker",
   "description": "Automatically track your daily coding time and sync to Firebase",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "publisher": "dipishBisht",
   "repository": {
-  "type": "git",
-  "url": "https://github.com/dipishBisht/Coding-Time-Tracker/"
-},
-  "type": "module",
+    "type": "git",
+    "url": "https://github.com/dipishBisht/Coding-Time-Tracker/"
+  },
   "engines": {
     "vscode": "^1.108.1"
   },
   "categories": [
     "Other"
   ],
-   "keywords": [
+  "keywords": [
     "time tracking",
     "productivity",
     "coding stats"
@@ -25,14 +24,18 @@
   ],
   "main": "./out/extension.js",
   "contributes": {
-    "commands": [
+   "commands": [
       {
         "command": "coding-time-tracker.configure",
-        "title": "Coding Time: Configure Firebase"
+        "title": "Coding Time: Configure API"
       },
       {
         "command": "coding-time-tracker.showStats",
         "title": "Coding Time: Show Today's Stats"
+      },
+      {
+        "command": "coding-time-tracker.showToken",
+        "title": "Coding Time: Show Token"
       }
     ]
   },
@@ -56,7 +59,7 @@
     "typescript-eslint": "^8.52.0"
   },
   "dependencies": {
-    "firebase-admin": "^13.6.0",
+    "axios": "^1.13.4",
     "uuid": "^13.0.0"
   }
 }
