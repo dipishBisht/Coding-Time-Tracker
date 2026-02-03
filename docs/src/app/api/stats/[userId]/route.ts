@@ -1,16 +1,16 @@
-import { NextRequest, NextResponse } from 'next/server';
-import connectToDatabase from '@/lib/mongoose';
-import Tracking from '@/models/Tracking';
-import User from '@/models/User';
+import { NextRequest, NextResponse } from "next/server";
+import connectToDatabase from "@/lib/mongoose";
+import Tracking from "@/models/Tracking";
+import User from "@/models/User";
 
 /**
  * GET /api/stats/:userId
- * 
+ *
  * Query params:
  *   - startDate (optional): "YYYY-MM-DD"
  *   - endDate (optional): "YYYY-MM-DD"
  *   - limit (optional): number of days (default: 30, max: 365)
- * 
+ *
  * Returns: {
  *   userId: string,
  *   userName?: string,
@@ -25,40 +25,40 @@ import User from '@/models/User';
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ userId: string }> }
+  { params }: { params: Promise<{ userId: string }> },
 ) {
   try {
-     const { userId } = await params;
+    const { userId } = await params;
 
     // Validate userId
-    if (!userId || typeof userId !== 'string' || userId.trim().length === 0) {
+    if (!userId || typeof userId !== "string" || userId.trim().length === 0) {
       return NextResponse.json(
-        { error: 'Invalid userId parameter' },
-        { status: 400 }
+        { error: "Invalid userId parameter" },
+        { status: 400 },
       );
     }
 
     // Parse query parameters
     const { searchParams } = new URL(request.url);
 
-    const startDate = searchParams.get('startDate');
-    const endDate = searchParams.get('endDate');
-    const limitParam = searchParams.get('limit');
+    const startDate = searchParams.get("startDate");
+    const endDate = searchParams.get("endDate");
+    const limitParam = searchParams.get("limit");
 
     // Validate date formats
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-    
+
     if (startDate && !dateRegex.test(startDate)) {
       return NextResponse.json(
-        { error: 'startDate must be in YYYY-MM-DD format' },
-        { status: 400 }
+        { error: "startDate must be in YYYY-MM-DD format" },
+        { status: 400 },
       );
     }
 
     if (endDate && !dateRegex.test(endDate)) {
       return NextResponse.json(
-        { error: 'endDate must be in YYYY-MM-DD format' },
-        { status: 400 }
+        { error: "endDate must be in YYYY-MM-DD format" },
+        { status: 400 },
       );
     }
 
@@ -68,8 +68,8 @@ export async function GET(
       const parsed = parseInt(limitParam, 10);
       if (isNaN(parsed) || parsed < 1) {
         return NextResponse.json(
-          { error: 'limit must be a positive number' },
-          { status: 400 }
+          { error: "limit must be a positive number" },
+          { status: 400 },
         );
       }
       limit = Math.min(parsed, 365);
@@ -79,7 +79,7 @@ export async function GET(
     await connectToDatabase();
 
     // Check if user exists
-    const user = await User.findOne({ userId }).select('name email');
+    const user = await User.findOne({ userId }).select("name email");
 
     if (!user) {
       // User doesn't exist yet (hasn't synced any data)
@@ -89,7 +89,7 @@ export async function GET(
         totalSeconds: 0,
         totalDays: 0,
         averageSecondsPerDay: 0,
-        message: 'No data found for this user',
+        message: "No data found for this user",
       });
     }
 
@@ -106,21 +106,28 @@ export async function GET(
     const trackingDocs = await Tracking.find(query)
       .sort({ date: -1 })
       .limit(limit)
-      .select('-_id -__v')
+      .select("-_id -__v")
       .lean();
 
     // Calculate aggregates
-    const totalSeconds = trackingDocs.reduce((sum, doc) => sum + doc.totalSeconds, 0);
+    const totalSeconds = trackingDocs.reduce(
+      (sum, doc) => sum + doc.totalSeconds,
+      0,
+    );
     const totalDays = trackingDocs.length;
-    const averageSecondsPerDay = totalDays > 0 ? Math.round(totalSeconds / totalDays) : 0;
+    const averageSecondsPerDay =
+      totalDays > 0 ? Math.round(totalSeconds / totalDays) : 0;
 
     // Format response
     const data = trackingDocs.map((doc) => ({
       date: doc.date,
       totalSeconds: doc.totalSeconds,
-      languages: Object.fromEntries(doc.languages),
+      languages: doc.languages,
       formattedDuration: formatDuration(doc.totalSeconds),
     }));
+
+    console.log("DOC SAMPLE:", trackingDocs[0]);
+    console.log("LANG TYPE:", typeof trackingDocs[0]?.languages);
 
     return NextResponse.json({
       userId,
@@ -131,12 +138,11 @@ export async function GET(
       averageSecondsPerDay,
       formattedAverage: formatDuration(averageSecondsPerDay),
     });
-
   } catch (error) {
-    console.error('[API]  Stats endpoint error:', error);
+    console.error("[API]  Stats endpoint error:", error);
     return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+      { error: "Internal server error" },
+      { status: 500 },
     );
   }
 }
@@ -153,5 +159,5 @@ function formatDuration(totalSeconds: number): string {
   if (minutes > 0) parts.push(`${minutes}m`);
   if (seconds > 0 || parts.length === 0) parts.push(`${seconds}s`);
 
-  return parts.join(' ');
+  return parts.join(" ");
 }
