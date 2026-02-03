@@ -25,10 +25,10 @@ import User from '@/models/User';
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { userId: string } }
+  { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
-    const { userId } = params;
+     const { userId } = await params;
 
     // Validate userId
     if (!userId || typeof userId !== 'string' || userId.trim().length === 0) {
