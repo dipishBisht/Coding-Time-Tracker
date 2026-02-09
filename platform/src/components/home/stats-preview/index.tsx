@@ -1,10 +1,24 @@
-'use client';
+"use client";
 import { motion } from "motion/react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+} from "recharts";
 
 const dailyData = [
-  { date: "Feb 1", hours: 3.2 }, { date: "Feb 2", hours: 4.1 }, { date: "Feb 3", hours: 2.8 },
-  { date: "Feb 4", hours: 5.0 }, { date: "Feb 5", hours: 3.5 }, { date: "Feb 6", hours: 4.8 },
+  { date: "Feb 1", hours: 3.2 },
+  { date: "Feb 2", hours: 4.1 },
+  { date: "Feb 3", hours: 2.8 },
+  { date: "Feb 4", hours: 5.0 },
+  { date: "Feb 5", hours: 3.5 },
+  { date: "Feb 6", hours: 4.8 },
   { date: "Feb 7", hours: 6.2 },
 ];
 
@@ -16,7 +30,7 @@ const languageData = [
   { name: "Other", value: 8, color: "hsl(220 13% 80%)" },
 ];
 
-export function StatsPreview() {
+export default function StatsPreview() {
   return (
     <section className="py-24 md:py-32">
       <div className="container">
@@ -44,11 +58,22 @@ export function StatsPreview() {
           {/* Bar chart */}
           <div className="rounded-xl border bg-card p-6 card-elevated">
             <h3 className="font-semibold mb-1">Daily Activity</h3>
-            <p className="text-sm text-muted-foreground mb-6">Hours coded this week</p>
+            <p className="text-sm text-muted-foreground mb-6">
+              Hours coded this week
+            </p>
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={dailyData}>
-                <XAxis dataKey="date" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 12 }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  tick={{ fontSize: 12 }}
+                  axisLine={false}
+                  tickLine={false}
+                />
                 <Tooltip
                   contentStyle={{
                     borderRadius: "0.75rem",
@@ -56,7 +81,11 @@ export function StatsPreview() {
                     boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
                   }}
                 />
-                <Bar dataKey="hours" fill="hsl(239 84% 67%)" radius={[6, 6, 0, 0]} />
+                <Bar
+                  dataKey="hours"
+                  fill="hsl(239 84% 67%)"
+                  radius={[6, 6, 0, 0]}
+                />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -64,7 +93,9 @@ export function StatsPreview() {
           {/* Pie chart */}
           <div className="rounded-xl border bg-card p-6 card-elevated">
             <h3 className="font-semibold mb-1">Language Breakdown</h3>
-            <p className="text-sm text-muted-foreground mb-6">Top languages by time</p>
+            <p className="text-sm text-muted-foreground mb-6">
+              Top languages by time
+            </p>
             <div className="flex items-center gap-6">
               <ResponsiveContainer width={160} height={160}>
                 <PieChart>
@@ -86,8 +117,14 @@ export function StatsPreview() {
               </ResponsiveContainer>
               <div className="space-y-2.5">
                 {languageData.map((lang) => (
-                  <div key={lang.name} className="flex items-center gap-2.5 text-sm">
-                    <div className="w-3 h-3 rounded-full" style={{ background: lang.color }} />
+                  <div
+                    key={lang.name}
+                    className="flex items-center gap-2.5 text-sm"
+                  >
+                    <div
+                      className="w-3 h-3 rounded-full"
+                      style={{ background: lang.color }}
+                    />
                     <span className="text-muted-foreground">{lang.name}</span>
                     <span className="font-medium ml-auto">{lang.value}%</span>
                   </div>
