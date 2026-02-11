@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongoose";
 import Tracking from "@/models/Tracking";
 import User from "@/models/User";
+import { withCors } from "@/lib/cors";
 
 /**
  * GET /api/stats/:userId
@@ -32,9 +33,11 @@ export async function GET(
 
     // Validate userId
     if (!userId || typeof userId !== "string" || userId.trim().length === 0) {
-      return NextResponse.json(
-        { error: "Invalid userId parameter" },
-        { status: 400 },
+      return withCors(
+        NextResponse.json(
+          { error: "Invalid userId parameter" },
+          { status: 400 },
+        ),
       );
     }
 
@@ -56,9 +59,11 @@ export async function GET(
     }
 
     if (endDate && !dateRegex.test(endDate)) {
-      return NextResponse.json(
-        { error: "endDate must be in YYYY-MM-DD format" },
-        { status: 400 },
+      return withCors(
+        NextResponse.json(
+          { error: "endDate must be in YYYY-MM-DD format" },
+          { status: 400 },
+        ),
       );
     }
 
@@ -67,9 +72,11 @@ export async function GET(
     if (limitParam) {
       const parsed = parseInt(limitParam, 10);
       if (isNaN(parsed) || parsed < 1) {
-        return NextResponse.json(
-          { error: "limit must be a positive number" },
-          { status: 400 },
+        return withCors(
+          NextResponse.json(
+            { error: "limit must be a positive number" },
+            { status: 400 },
+          ),
         );
       }
       limit = Math.min(parsed, 365);
@@ -83,14 +90,16 @@ export async function GET(
 
     if (!user) {
       // User doesn't exist yet (hasn't synced any data)
-      return NextResponse.json({
-        userId,
-        data: [],
-        totalSeconds: 0,
-        totalDays: 0,
-        averageSecondsPerDay: 0,
-        message: "No data found for this user",
-      });
+      return withCors(
+        NextResponse.json({
+          userId,
+          data: [],
+          totalSeconds: 0,
+          totalDays: 0,
+          averageSecondsPerDay: 0,
+          message: "No data found for this user",
+        }),
+      );
     }
 
     // Build Mongoose query
@@ -137,9 +146,8 @@ export async function GET(
     });
   } catch (error) {
     console.error("[API]  Stats endpoint error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
+    return withCors(
+      NextResponse.json({ error: "Internal server error" }, { status: 500 }),
     );
   }
 }

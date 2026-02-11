@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongoose";
-import Tracking from "@/models/Tracking";
+import Tracking, { ITracking } from "@/models/Tracking";
 import User from "@/models/User";
+import { withCors } from "@/lib/cors";
 
 /**
  * GET /api/dashboard/:userId
@@ -26,9 +27,11 @@ export async function GET(
 
     // Validate userId
     if (!userId || typeof userId !== "string" || userId.trim().length === 0) {
-      return NextResponse.json(
-        { error: "Invalid userId parameter" },
-        { status: 400 },
+      return withCors(
+        NextResponse.json(
+          { error: "Invalid userId parameter" },
+          { status: 400 },
+        ),
       );
     }
 
@@ -40,9 +43,11 @@ export async function GET(
     if (daysParam) {
       const parsed = parseInt(daysParam, 10);
       if (isNaN(parsed) || parsed < 1) {
-        return NextResponse.json(
-          { error: "days must be a positive number" },
-          { status: 400 },
+        return withCors(
+          NextResponse.json(
+            { error: "days must be a positive number" },
+            { status: 400 },
+          ),
         );
       }
       days = Math.min(parsed, 365); // Cap at 365
@@ -56,12 +61,14 @@ export async function GET(
 
     if (!user) {
       // User hasn't synced any data yet
-      return NextResponse.json({
-        userId,
-        hasData: false,
-        message:
-          "No tracking data found for this user. Start coding with the extension installed!",
-      });
+      return withCors(
+        NextResponse.json({
+          userId,
+          hasData: false,
+          message:
+            "No tracking data found for this user. Start coding with the extension installed!",
+        }),
+      );
     }
 
     // Calculate date range
@@ -82,12 +89,14 @@ export async function GET(
 
     // If no data in range
     if (trackingData.length === 0) {
-      return NextResponse.json({
-        userId,
-        userName: user.name,
-        hasData: false,
-        message: `No coding activity in the last ${days} days. Keep coding!`,
-      });
+      return withCors(
+        NextResponse.json({
+          userId,
+          userName: user.name,
+          hasData: false,
+          message: `No coding activity in the last ${days} days. Keep coding!`,
+        }),
+      );
     }
 
     // Calculate overview statistics
@@ -163,61 +172,62 @@ export async function GET(
     const dayOfWeekPattern = calculateDayOfWeekPattern(trackingData);
 
     // Build comprehensive response
-    return NextResponse.json({
-      userId,
-      userName: user.name || null,
-      userEmail: user.email || null,
-      joinDate: user.createdAt ? formatDate(new Date(user.createdAt)) : null,
-      hasData: true,
+    return withCors(
+      NextResponse.json({
+        userId,
+        userName: user.name || null,
+        userEmail: user.email || null,
+        joinDate: user.createdAt ? formatDate(new Date(user.createdAt)) : null,
+        hasData: true,
 
-      // Overview stats
-      overview: {
-        totalHours,
-        totalMinutes,
-        totalSeconds,
-        totalDays,
-        averageSecondsPerDay,
-        averageHoursPerDay: parseFloat(
-          (averageSecondsPerDay / 3600).toFixed(2),
-        ),
-        formattedTotal: `${totalHours}h ${totalMinutes}m`,
-        formattedAverage: formatDuration(averageSecondsPerDay),
-      },
-
-      // Chart data
-      charts: {
-        dailyTrend, // For line chart
-        languageBreakdown, // For pie/bar chart
-        dayOfWeekPattern, // For heatmap/bar chart
-      },
-
-      // Recent activity
-      recentActivity,
-
-      // Achievements
-      achievements: {
-        currentStreak,
-        longestStreak,
-        peakDay: {
-          date: peakDay.date,
-          hours: parseFloat((peakDay.totalSeconds / 3600).toFixed(2)),
-          formattedTime: formatDuration(peakDay.totalSeconds),
+        // Overview stats
+        overview: {
+          totalHours,
+          totalMinutes,
+          totalSeconds,
+          totalDays,
+          averageSecondsPerDay,
+          averageHoursPerDay: parseFloat(
+            (averageSecondsPerDay / 3600).toFixed(2),
+          ),
+          formattedTotal: `${totalHours}h ${totalMinutes}m`,
+          formattedAverage: formatDuration(averageSecondsPerDay),
         },
-        milestones,
-      },
 
-      // Meta
-      dateRange: {
-        start: startDateStr,
-        end: endDateStr,
-        days,
-      },
-    });
+        // Chart data
+        charts: {
+          dailyTrend, // For line chart
+          languageBreakdown, // For pie/bar chart
+          dayOfWeekPattern, // For heatmap/bar chart
+        },
+
+        // Recent activity
+        recentActivity,
+
+        // Achievements
+        achievements: {
+          currentStreak,
+          longestStreak,
+          peakDay: {
+            date: peakDay.date,
+            hours: parseFloat((peakDay.totalSeconds / 3600).toFixed(2)),
+            formattedTime: formatDuration(peakDay.totalSeconds),
+          },
+          milestones,
+        },
+
+        // Meta
+        dateRange: {
+          start: startDateStr,
+          end: endDateStr,
+          days,
+        },
+      }),
+    );
   } catch (error) {
     console.error("[API] Dashboard endpoint error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
+    return withCors(
+      NextResponse.json({ error: "Internal server error" }, { status: 500 }),
     );
   }
 }
@@ -253,7 +263,7 @@ function formatDuration(totalSeconds: number): string {
 /**
  * Calculate current and longest coding streaks
  */
-function calculateStreaks(trackingData: any[]): {
+function calculateStreaks(trackingData: ITracking[]): {
   currentStreak: number;
   longestStreak: number;
 } {
@@ -365,7 +375,7 @@ function calculateMilestones(
 /**
  * Calculate average coding time per day of the week
  */
-function calculateDayOfWeekPattern(trackingData: any[]): Array<{
+function calculateDayOfWeekPattern(trackingData: ITracking[]): Array<{
   day: string;
   dayNumber: number;
   averageSeconds: number;
