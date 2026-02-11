@@ -3,7 +3,7 @@
   "displayName": "Time in Code",
   "description": "Automatically track your daily coding time and sync to DB",
   "icon": "images/logo.png",
-  "version": "0.1.2",
+  "version": "0.1.5",
   "publisher": "DipishBisht",
   "repository": {
     "type": "git",
