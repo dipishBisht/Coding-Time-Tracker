@@ -135,15 +135,17 @@ export async function GET(
       formattedDuration: formatDuration(doc.totalSeconds),
     }));
 
-    return NextResponse.json({
-      userId,
-      userName: user.name,
-      data,
-      totalSeconds,
-      totalDays,
-      averageSecondsPerDay,
-      formattedAverage: formatDuration(averageSecondsPerDay),
-    });
+    return withCors(
+      NextResponse.json({
+        userId,
+        userName: user.name,
+        data,
+        totalSeconds,
+        totalDays,
+        averageSecondsPerDay,
+        formattedAverage: formatDuration(averageSecondsPerDay),
+      }),
+    );
   } catch (error) {
     console.error("[API]  Stats endpoint error:", error);
     return withCors(
