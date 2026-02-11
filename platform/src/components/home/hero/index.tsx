@@ -62,7 +62,7 @@ export default function Hero() {
               className="gap-2 text-base px-8"
               asChild
             >
-              <Link href="/dashboard/demo">
+              <Link href="/dashboard/YOUR_USER_ID">
                 <Play className="h-4 w-4" />
                 View Demo
               </Link>

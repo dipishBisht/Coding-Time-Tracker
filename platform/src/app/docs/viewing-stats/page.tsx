@@ -27,7 +27,7 @@ export default function ViewingStats() {
       </p>
       <div className="my-4 p-4 rounded-lg border bg-muted/30">
         <code className="text-sm">
-          https://coding-time-api.vercel.app/dashboard/YOUR_USER_ID
+          https://time-in-code.vercel.app/dashboard/YOUR_USER_ID
         </code>
       </div>
       <p>
@@ -36,7 +36,7 @@ export default function ViewingStats() {
         Code — it&apos;s displayed in the output.
       </p>
       <p>
-        <Link href="/dashboard/demo" className="text-primary hover:underline">
+        <Link href="/dashboard/YOUR_USER_ID" className="text-primary hover:underline">
           View a demo dashboard →
         </Link>
       </p>

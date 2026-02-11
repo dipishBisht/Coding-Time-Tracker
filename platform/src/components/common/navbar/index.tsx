@@ -10,7 +10,7 @@ import Image from "next/image";
 const navLinks = [
   { label: "Docs", to: "/docs/quick-start" },
   { label: "API Reference", to: "/docs/api-reference" },
-  { label: "Dashboard", to: "/dashboard/demo" },
+  { label: "Dashboard", to: "/dashboard/YOUR_USER_ID" },
 ];
 
 export default function Navbar() {

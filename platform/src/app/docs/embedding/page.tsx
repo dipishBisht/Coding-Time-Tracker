@@ -16,7 +16,7 @@ export default function CodingStats() {
   const [stats, setStats] = useState<any>(null);
 
   useEffect(() => {
-    fetch('https://coding-time-api.vercel.app/api/stats/YOUR_USER_ID')
+    fetch('https://time-in-code.vercel.app/api/stats/YOUR_USER_ID')
       .then(r => r.json())
       .then(setStats);
   }, []);
@@ -39,7 +39,7 @@ export default function CodingStats() {
         title="index.html"
         code={`<div id="coding-stats"></div>
 <script>
-  fetch('https://coding-time-api.vercel.app/api/stats/YOUR_USER_ID')
+  fetch('https://time-in-code.vercel.app/api/stats/YOUR_USER_ID')
     .then(r => r.json())
     .then(stats => {
       document.getElementById('coding-stats').innerHTML = \`
@@ -68,7 +68,7 @@ const stats = ref(null);
 
 onMounted(async () => {
   const res = await fetch(
-    'https://coding-time-api.vercel.app/api/stats/YOUR_USER_ID'
+    'https://time-in-code.vercel.app/api/stats/YOUR_USER_ID'
   );
   stats.value = await res.json();
 });
@@ -85,7 +85,7 @@ onMounted(async () => {
 
   onMount(async () => {
     const res = await fetch(
-      'https://coding-time-api.vercel.app/api/stats/YOUR_USER_ID'
+      'https://time-in-code.vercel.app/api/stats/YOUR_USER_ID'
     );
     stats = await res.json();
   });

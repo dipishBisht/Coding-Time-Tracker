@@ -72,12 +72,13 @@ export async function GET(
     }
 
     // Calculate date range
-    const endDate = new Date();
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - days);
+    const now = new Date();
 
-    const startDateStr = formatDate(startDate);
-    const endDateStr = formatDate(endDate);
+    const endDateStr = now.toISOString().slice(0, 10);
+
+    const start = new Date(now);
+    start.setUTCDate(start.getUTCDate() - days);
+    const startDateStr = start.toISOString().slice(0, 10);
 
     // Fetch tracking data
     const trackingData = await Tracking.find({
@@ -166,7 +167,11 @@ export async function GET(
     );
 
     // Calculate milestones
-    const milestones = calculateMilestones(totalHours, totalDays);
+    const milestones = calculateMilestones(
+      totalHours,
+      totalDays,
+      currentStreak,
+    );
 
     // Calculate day-of-week pattern
     const dayOfWeekPattern = calculateDayOfWeekPattern(trackingData);
@@ -263,59 +268,54 @@ function formatDuration(totalSeconds: number): string {
 /**
  * Calculate current and longest coding streaks
  */
-function calculateStreaks(trackingData: ITracking[]): {
-  currentStreak: number;
-  longestStreak: number;
-} {
-  if (trackingData.length === 0) {
+function calculateStreaks(trackingData: ITracking[]) {
+  if (!trackingData.length) {
     return { currentStreak: 0, longestStreak: 0 };
   }
 
-  let currentStreak = 0;
-  let longestStreak = 0;
-  let tempStreak = 1;
-
-  // Sort by date to ensure chronological order
+  // Sort ascending
   const sorted = [...trackingData].sort(
     (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
   );
 
-  for (let i = 1; i < sorted.length; i++) {
-    const prevDate = new Date(sorted[i - 1].date);
-    const currDate = new Date(sorted[i].date);
+  const dates = sorted.map((d) => d.date);
 
-    // Calculate day difference
-    const diffTime = currDate.getTime() - prevDate.getTime();
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  // ---------- longest streak ----------
+  let longest = 1;
+  let run = 1;
 
-    if (diffDays === 1) {
-      // Consecutive day
-      tempStreak++;
+  for (let i = 1; i < dates.length; i++) {
+    const prev = new Date(dates[i - 1]);
+    const curr = new Date(dates[i]);
+
+    const diff = (curr.getTime() - prev.getTime()) / (1000 * 60 * 60 * 24);
+
+    if (diff === 1) {
+      run++;
+      longest = Math.max(longest, run);
     } else {
-      // Streak broken
-      longestStreak = Math.max(longestStreak, tempStreak);
-      tempStreak = 1;
+      run = 1;
     }
   }
 
-  longestStreak = Math.max(longestStreak, tempStreak);
+  // ---------- current streak ----------
+  let current = 0;
+  let cursor = new Date().toISOString().slice(0, 10);
 
-  // Calculate current streak (from most recent day)
-  const today = new Date();
-  const lastTrackedDate = new Date(sorted[sorted.length - 1].date);
-  const daysSinceLastTrack = Math.floor(
-    (today.getTime() - lastTrackedDate.getTime()) / (1000 * 60 * 60 * 24),
-  );
+  const dateSet = new Set(dates);
 
-  if (daysSinceLastTrack <= 1) {
-    // Current streak is active
-    currentStreak = tempStreak;
-  } else {
-    // Streak is broken
-    currentStreak = 0;
+  while (dateSet.has(cursor)) {
+    current++;
+
+    const d = new Date(cursor);
+    d.setUTCDate(d.getUTCDate() - 1);
+    cursor = d.toISOString().slice(0, 10);
   }
 
-  return { currentStreak, longestStreak };
+  return {
+    currentStreak: current,
+    longestStreak: longest,
+  };
 }
 
 /**
@@ -324,6 +324,7 @@ function calculateStreaks(trackingData: ITracking[]): {
 function calculateMilestones(
   totalHours: number,
   totalDays: number,
+  currentStreak: number,
 ): Array<{
   title: string;
   achieved: boolean;
@@ -357,8 +358,8 @@ function calculateMilestones(
     },
     {
       title: "7-Day Streak",
-      achieved: totalDays >= 7,
-      progress: Math.min(totalDays, 7),
+      achieved: currentStreak >= 7,
+      progress: Math.min(currentStreak, 7),
       target: 7,
     },
     {

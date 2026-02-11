@@ -94,7 +94,7 @@ code --install-extension coding-time-tracker-0.1.0.vsix`}
             <li>Copy your User ID</li>
             <li>
               Visit your{" "}
-              <Link href="/dashboard/demo" className="text-primary underline">
+              <Link href="/dashboard/YOUR_USER_ID" className="text-primary underline">
                 dashboard
               </Link>
             </li>
@@ -102,7 +102,7 @@ code --install-extension coding-time-tracker-0.1.0.vsix`}
           <CodeBlock
             language="text"
             title="Dashboard URL"
-            code="https://coding-time-api.vercel.app/dashboard/YOUR_USER_ID"
+            code="https://time-in-code.vercel.app/dashboard/YOUR_USER_ID"
           />
         </div>
       </div>

@@ -6,7 +6,7 @@ const footerLinks = {
   Product: [
     { label: "Quick Start", to: "/docs/quick-start" },
     { label: "API Reference", to: "/docs/api-reference" },
-    { label: "Dashboard", to: "/dashboard/demo" },
+    { label: "Dashboard", to: "/dashboard/YOUR_USER_ID" },
   ],
   Documentation: [
     { label: "Installation", to: "/docs/installation" },

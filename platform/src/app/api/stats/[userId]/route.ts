@@ -52,9 +52,11 @@ export async function GET(
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
 
     if (startDate && !dateRegex.test(startDate)) {
-      return NextResponse.json(
-        { error: "startDate must be in YYYY-MM-DD format" },
-        { status: 400 },
+      return withCors(
+        NextResponse.json(
+          { error: "startDate must be in YYYY-MM-DD format" },
+          { status: 400 },
+        ),
       );
     }
 

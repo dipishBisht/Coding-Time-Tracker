@@ -153,7 +153,10 @@ export async function POST(request: NextRequest) {
         userId: tracking.userId,
         date: tracking.date,
         totalSeconds: tracking.totalSeconds,
-        languages: Object.fromEntries(tracking.languages),
+        languages:
+          tracking.languages instanceof Map
+            ? Object.fromEntries(tracking.languages)
+            : tracking.languages,
         formattedDuration: tracking.formatDuration(),
       }),
     );
